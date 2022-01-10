@@ -1,9 +1,9 @@
 /*
-See LICENSE folder for this sample’s licensing information.
-
-Abstract:
-A class to manage all of the Metal objects this app creates.
-*/
+ See LICENSE folder for this sample’s licensing information.
+ 
+ Abstract:
+ A class to manage all of the Metal objects this app creates.
+ */
 
 #import "MetalAdder.h"
 #import "ShaderTypes.h"
@@ -17,13 +17,13 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
 @implementation MetalAdder
 {
     id<MTLDevice> _mDevice;
-
+    
     // The compute pipeline generated from the compute kernel in the .metal shader file.
     id<MTLComputePipelineState> _mAddFunctionPSO;
-
+    
     // The command queue used to pass commands to the device.
     id<MTLCommandQueue> _mCommandQueue;
-
+    
     // Data and buffers to hold data
     id<MTLBuffer> captureDevicePropertyControlLayoutBuffer;
 }
@@ -34,25 +34,25 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
     if (self)
     {
         _mDevice = device;
-
+        
         NSError* error = nil;
-
+        
         // Load the shader files with a .metal file extension in the project
-
+        
         id<MTLLibrary> defaultLibrary = [_mDevice newDefaultLibrary];
         if (defaultLibrary == nil)
         {
             NSLog(@"Failed to find the default library.");
             return nil;
         }
-
+        
         id<MTLFunction> addFunction = [defaultLibrary newFunctionWithName:@"add_arrays"];
         if (addFunction == nil)
         {
             NSLog(@"Failed to find the adder function.");
             return nil;
         }
-
+        
         // Create a compute pipeline state object.
         _mAddFunctionPSO = [_mDevice newComputePipelineStateWithFunction: addFunction error:&error];
         if (_mAddFunctionPSO == nil)
@@ -63,7 +63,7 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
             NSLog(@"Failed to created pipeline state object, error %@.", error);
             return nil;
         }
-
+        
         _mCommandQueue = [_mDevice newCommandQueue];
         if (_mCommandQueue == nil)
         {
@@ -78,7 +78,7 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
 - (void) prepareData
 {
     printf("sizeof(CaptureDevicePropertyControlLayout) == %lu\n", sizeof(struct CaptureDevicePropertyControlLayout));
-    captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:(sizeof(CaptureDevicePropertyControlLayout) * 5) options:MTLResourceStorageModeShared];
+    captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:(sizeof(CaptureDevicePropertyControlLayout) * arrayLength) options:MTLResourceStorageModeShared];
     printf("captureDevicePropertyControlLayoutBuffer == %lu\n", sizeof(captureDevicePropertyControlLayoutBuffer));
     struct CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
     captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout){
@@ -88,26 +88,15 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
         .arc_center           = {0.0, 0.0},
         .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
     };
+    
 }
 
-
-
 - (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
-
-    
-//    let threadgroups = MTLSizeMake(min(cookedVertex3DBufferLength, 512), 1, 1)
-//        let threadgroupsCount = MTLSizeMake(1, 1, 1)
-//        omputeCommandEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadgroupsCount)
-    
-    
-    
-    
     // Encode the pipeline state object and its parameters.
     [computeEncoder setComputePipelineState:_mAddFunctionPSO];
     [computeEncoder setBuffer:captureDevicePropertyControlLayoutBuffer offset:0 atIndex:0];
     
-    
-    MTLSize threadsPerThreadgroup = MTLSizeMake(_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth, 1, 1);
+    MTLSize threadsPerThreadgroup = MTLSizeMake(MIN(sizeof(CaptureDevicePropertyControlLayout), (_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth)), 1, 1);
     MTLSize threadsPerGrid = MTLSizeMake(arrayLength, 1, 1);
     [computeEncoder dispatchThreads: threadsPerGrid
               threadsPerThreadgroup: threadsPerThreadgroup];
@@ -118,19 +107,19 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
     // Create a command buffer to hold commands.
     id<MTLCommandBuffer> commandBuffer = [_mCommandQueue commandBuffer];
     assert(commandBuffer != nil);
-
+    
     // Start a compute pass.
     id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
     assert(computeEncoder != nil);
-
+    
     [self encodeAddCommand:computeEncoder];
-
+    
     // End the compute pass.
     [computeEncoder endEncoding];
-
+    
     // Execute the command.
     [commandBuffer commit];
-
+    
     // Normally, you want to do other work in your app while the GPU is running,
     // but in this example, the code simply blocks until the calculation is complete.
     [commandBuffer waitUntilCompleted];
@@ -151,12 +140,5 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
                (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
     }
 }
-
-
-static simd_float1 col_idx;
-simd_float3x2 (^bezier_path_points)(simd_float1) = ^ (simd_float1 index) {
-    simd_float2 col = simd_make_float2(col_idx++, index);
-    return (simd_float3x2) {col, col, col};
-};
 
 @end
