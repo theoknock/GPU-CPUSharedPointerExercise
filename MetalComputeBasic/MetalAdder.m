@@ -6,10 +6,13 @@ A class to manage all of the Metal objects this app creates.
 */
 
 #import "MetalAdder.h"
+#import "ShaderTypes.h"
+
+#import <simd/simd.h>
 
 // The number of floats in each array, and the size of the arrays in bytes.
-const unsigned int arrayLength = 1 << 24;
-const unsigned int bufferSize = arrayLength * sizeof(float);
+const unsigned int arrayLength = 0x05;
+const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
 
 @implementation MetalAdder
 {
@@ -21,11 +24,9 @@ const unsigned int bufferSize = arrayLength * sizeof(float);
     // The command queue used to pass commands to the device.
     id<MTLCommandQueue> _mCommandQueue;
 
-    // Buffers to hold data.
-    id<MTLBuffer> _mBufferA;
-    id<MTLBuffer> _mBufferB;
-    id<MTLBuffer> _mBufferResult;
-
+    // Data and buffers to hold data
+    BezierPathPoints bezierPathPoints[arrayLength];
+    id<MTLBuffer> bezierPathPointsBuffer;
 }
 
 - (instancetype) initWithDevice: (id<MTLDevice>) device
@@ -78,12 +79,13 @@ const unsigned int bufferSize = arrayLength * sizeof(float);
 - (void) prepareData
 {
     // Allocate three buffers to hold our initial data and the result.
-    _mBufferA = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-    _mBufferB = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-    _mBufferResult = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-
-    [self generateRandomFloatData:_mBufferA];
-    [self generateRandomFloatData:_mBufferB];
+    bezierPathPointsBuffer = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
+    BezierPathPoints * bezierPathPointsPtr = bezierPathPointsBuffer.contents;
+    for (unsigned long index = 0; index < arrayLength; index++)
+    {
+        bezierPathPointsPtr[index] = ((BezierPathPoints){ .bezier_path_position_points = bezier_path_position(), .bezier_path_control_points = bezier_path_control()});
+        printf(" %p\n", bezierPathPointsPtr[index]);
+   }
 }
 
 - (void) sendComputeCommand
@@ -107,31 +109,25 @@ const unsigned int bufferSize = arrayLength * sizeof(float);
     // Normally, you want to do other work in your app while the GPU is running,
     // but in this example, the code simply blocks until the calculation is complete.
     [commandBuffer waitUntilCompleted];
-
-    [self verifyResults];
+    
+    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull commands) {
+        [self verifyResults];
+    }];
+    
+    
 }
 
 - (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
 
     // Encode the pipeline state object and its parameters.
     [computeEncoder setComputePipelineState:_mAddFunctionPSO];
-    [computeEncoder setBuffer:_mBufferA offset:0 atIndex:0];
-    [computeEncoder setBuffer:_mBufferB offset:0 atIndex:1];
-    [computeEncoder setBuffer:_mBufferResult offset:0 atIndex:2];
-
-    MTLSize gridSize = MTLSizeMake(arrayLength, 1, 1);
-
-    // Calculate a threadgroup size.
-    NSUInteger threadGroupSize = _mAddFunctionPSO.maxTotalThreadsPerThreadgroup;
-    if (threadGroupSize > arrayLength)
-    {
-        threadGroupSize = arrayLength;
-    }
-    MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
-
-    // Encode the compute command.
-    [computeEncoder dispatchThreads:gridSize
-              threadsPerThreadgroup:threadgroupSize];
+    [computeEncoder setBuffer:bezierPathPointsBuffer offset:0 atIndex:0];
+//    [computeEncoder setBytes:&bezierPathPointsBuffer length:(6 * sizeof(simd_float2)) atIndex:3];
+    
+    MTLSize threadsPerThreadgroup = MTLSizeMake(_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth, 1, 1);
+    MTLSize threadsPerGrid = MTLSizeMake(_mAddFunctionPSO.threadExecutionWidth, 1, 1);
+    [computeEncoder dispatchThreads: threadsPerGrid
+              threadsPerThreadgroup: threadsPerThreadgroup];
 }
 
 - (void) generateRandomFloatData: (id<MTLBuffer>) buffer
@@ -140,24 +136,53 @@ const unsigned int bufferSize = arrayLength * sizeof(float);
 
     for (unsigned long index = 0; index < arrayLength; index++)
     {
+        printf("index == %lu\n\n", index);
         dataPtr[index] = (float)rand()/(float)(RAND_MAX);
     }
 }
+
 - (void) verifyResults
 {
-    float* a = _mBufferA.contents;
-    float* b = _mBufferB.contents;
-    float* result = _mBufferResult.contents;
-
+    BezierPathPoints * bezierPathPointsBufferPtr = (BezierPathPoints *)bezierPathPointsBuffer.contents;
+    
     for (unsigned long index = 0; index < arrayLength; index++)
     {
-        if (result[index] != (a[index] + b[index]))
+        printf("-----------------------------\n");
+        printf("%lu\n", index);
+        for (unsigned long col_idx = 0; col_idx < 3; col_idx++)
         {
-            printf("Compute ERROR: index=%lu result=%g vs %g=a+b\n",
-                   index, result[index], a[index] + b[index]);
-            assert(result[index] == (a[index] + b[index]));
+            printf("\t\t\t{%.1f, %.1f}\t\t\t{%.1f, %.1f}\n",
+                   (((*bezierPathPointsBufferPtr).bezier_path_position_points).columns[col_idx]).x,
+                   (((*bezierPathPointsBufferPtr).bezier_path_position_points).columns[col_idx]).y,
+                   (((*bezierPathPointsBufferPtr).bezier_path_control_points).columns[col_idx]).x,
+                   (((*bezierPathPointsBufferPtr).bezier_path_control_points).columns[col_idx]).y);
         }
+        printf("-----------------------------\n");
     }
-    printf("Compute results as expected\n");
+    printf("\nCompute results as expected\n");
 }
+
+
+
+simd_float3x2 bezier_path_position (void) {
+    return (simd_float3x2) {{
+        {0x00,   0x01},
+        { 0x02,   0x04},
+        { 0x06,   0x08}
+    }};
+}
+
+simd_float3x2 bezier_path_control (void) {
+    return (simd_float3x2) {{
+        {0x10,   0x20},
+        {0x40,  0x80},
+        {0x100, 0x200}
+    }};
+}
+
+- (void)updateBezierPathPoints {
+    
+}
+
+
 @end
