@@ -83,7 +83,7 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
     struct CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
     captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout){
         .arc_touch_point      = {0.0, 0.0},
-        .button_center_points = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}},
+        .button_center_points = {{4.0, 0.0}, {3.0, 0.0}, {2.0, 0.0}, {1.0, 0.0}, {0.0, 0.0}},
         .arc_radius           = 0.0,
         .arc_center           = {0.0, 0.0},
         .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
@@ -94,13 +94,21 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
 
 - (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
 
+    
+//    let threadgroups = MTLSizeMake(min(cookedVertex3DBufferLength, 512), 1, 1)
+//        let threadgroupsCount = MTLSizeMake(1, 1, 1)
+//        omputeCommandEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadgroupsCount)
+    
+    
+    
+    
     // Encode the pipeline state object and its parameters.
     [computeEncoder setComputePipelineState:_mAddFunctionPSO];
     [computeEncoder setBuffer:captureDevicePropertyControlLayoutBuffer offset:0 atIndex:0];
     
     
     MTLSize threadsPerThreadgroup = MTLSizeMake(_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth, 1, 1);
-    MTLSize threadsPerGrid = MTLSizeMake(bufferSize, 1, 1);
+    MTLSize threadsPerGrid = MTLSizeMake(arrayLength, 1, 1);
     [computeEncoder dispatchThreads: threadsPerGrid
               threadsPerThreadgroup: threadsPerThreadgroup];
 }
@@ -136,20 +144,12 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
 {
     CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)captureDevicePropertyControlLayoutBuffer.contents;
     printf("bezierPathPointsBufferPtr (BezierPathPoints) == %lu\n", sizeof(*captureDevicePropertyControlLayoutBufferPtr));
-    for (unsigned long index = 0; index < arrayLength; index++)
+    for (unsigned long col_idx = 0; col_idx < 5; col_idx++)
     {
-        printf("-----------------------------\n");
-        printf("\t\tindex == %lu\n\n", index);
-        printf("\t\t\tPosition\n");
-        for (unsigned long col_idx = 0; col_idx < 5; col_idx++)
-        {
-            printf("\t\t\t%lu\t\t{%.1f, %.1f}\n", col_idx,
-                   (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).x,
-                   (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
-        }
-        printf("-----------------------------\n");
+        printf("\t\t\t%lu\t\t{%.1f, %.1f}\n", col_idx,
+               (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).x,
+               (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
     }
-    printf("\nCompute results as expected\n");
 }
 
 

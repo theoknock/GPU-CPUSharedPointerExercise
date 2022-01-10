@@ -27,5 +27,5 @@ typedef struct
 kernel void add_arrays(device CaptureDevicePropertyControlLayout & layout [[ buffer(0) ]],
                                     uint idx [[ thread_position_in_grid ]])
 {
-    layout.button_center_points[idx] = {(float)layout.button_center_points[idx].x-idx, (float)idx-layout.button_center_points[idx].y};
+    layout.button_center_points[idx] = {(float)idx - layout.button_center_points[idx].x, (float)idx - layout.button_center_points[idx].y};
 }
