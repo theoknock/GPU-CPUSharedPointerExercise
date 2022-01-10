@@ -12,7 +12,7 @@ A class to manage all of the Metal objects this app creates.
 
 // The number of floats in each array, and the size of the arrays in bytes.
 const unsigned int arrayLength = 0x05;
-const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
+const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyControlLayout));
 
 @implementation MetalAdder
 {
@@ -25,8 +25,7 @@ const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
     id<MTLCommandQueue> _mCommandQueue;
 
     // Data and buffers to hold data
-    BezierPathPoints bezierPathPoints[arrayLength];
-    id<MTLBuffer> bezierPathPointsBuffer;
+    id<MTLBuffer> captureDevicePropertyControlLayoutBuffer;
 }
 
 - (instancetype) initWithDevice: (id<MTLDevice>) device
@@ -72,20 +71,38 @@ const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
             return nil;
         }
     }
-
+    
     return self;
 }
 
 - (void) prepareData
 {
-    // Allocate three buffers to hold our initial data and the result.
-    bezierPathPointsBuffer = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
-    BezierPathPoints * bezierPathPointsPtr = bezierPathPointsBuffer.contents;
-    for (unsigned long index = 0; index < arrayLength; index++)
-    {
-        bezierPathPointsPtr[index] = ((BezierPathPoints){ .bezier_path_position_points = bezier_path_position(), .bezier_path_control_points = bezier_path_control()});
-        printf(" %p\n", bezierPathPointsPtr[index]);
-   }
+    printf("sizeof(CaptureDevicePropertyControlLayout) == %lu\n", sizeof(struct CaptureDevicePropertyControlLayout));
+    captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:(sizeof(CaptureDevicePropertyControlLayout) * 5) options:MTLResourceStorageModeShared];
+    printf("captureDevicePropertyControlLayoutBuffer == %lu\n", sizeof(captureDevicePropertyControlLayoutBuffer));
+    struct CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
+    captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout){
+        .arc_touch_point      = {0.0, 0.0},
+        .button_center_points = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}},
+        .arc_radius           = 0.0,
+        .arc_center           = {0.0, 0.0},
+        .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
+    };
+}
+
+
+
+- (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
+
+    // Encode the pipeline state object and its parameters.
+    [computeEncoder setComputePipelineState:_mAddFunctionPSO];
+    [computeEncoder setBuffer:captureDevicePropertyControlLayoutBuffer offset:0 atIndex:0];
+    
+    
+    MTLSize threadsPerThreadgroup = MTLSizeMake(_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth, 1, 1);
+    MTLSize threadsPerGrid = MTLSizeMake(bufferSize, 1, 1);
+    [computeEncoder dispatchThreads: threadsPerGrid
+              threadsPerThreadgroup: threadsPerThreadgroup];
 }
 
 - (void) sendComputeCommand
@@ -113,49 +130,22 @@ const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
     [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull commands) {
         [self verifyResults];
     }];
-    
-    
-}
-
-- (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
-
-    // Encode the pipeline state object and its parameters.
-    [computeEncoder setComputePipelineState:_mAddFunctionPSO];
-    [computeEncoder setBuffer:bezierPathPointsBuffer offset:0 atIndex:0];
-//    [computeEncoder setBytes:&bezierPathPointsBuffer length:(6 * sizeof(simd_float2)) atIndex:3];
-    
-    MTLSize threadsPerThreadgroup = MTLSizeMake(_mAddFunctionPSO.maxTotalThreadsPerThreadgroup / _mAddFunctionPSO.threadExecutionWidth, 1, 1);
-    MTLSize threadsPerGrid = MTLSizeMake(_mAddFunctionPSO.threadExecutionWidth, 1, 1);
-    [computeEncoder dispatchThreads: threadsPerGrid
-              threadsPerThreadgroup: threadsPerThreadgroup];
-}
-
-- (void) generateRandomFloatData: (id<MTLBuffer>) buffer
-{
-    float* dataPtr = buffer.contents;
-
-    for (unsigned long index = 0; index < arrayLength; index++)
-    {
-        printf("index == %lu\n\n", index);
-        dataPtr[index] = (float)rand()/(float)(RAND_MAX);
-    }
 }
 
 - (void) verifyResults
 {
-    BezierPathPoints * bezierPathPointsBufferPtr = (BezierPathPoints *)bezierPathPointsBuffer.contents;
-    
+    CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)captureDevicePropertyControlLayoutBuffer.contents;
+    printf("bezierPathPointsBufferPtr (BezierPathPoints) == %lu\n", sizeof(*captureDevicePropertyControlLayoutBufferPtr));
     for (unsigned long index = 0; index < arrayLength; index++)
     {
         printf("-----------------------------\n");
-        printf("%lu\n", index);
-        for (unsigned long col_idx = 0; col_idx < 3; col_idx++)
+        printf("\t\tindex == %lu\n\n", index);
+        printf("\t\t\tPosition\n");
+        for (unsigned long col_idx = 0; col_idx < 5; col_idx++)
         {
-            printf("\t\t\t{%.1f, %.1f}\t\t\t{%.1f, %.1f}\n",
-                   (((*bezierPathPointsBufferPtr).bezier_path_position_points).columns[col_idx]).x,
-                   (((*bezierPathPointsBufferPtr).bezier_path_position_points).columns[col_idx]).y,
-                   (((*bezierPathPointsBufferPtr).bezier_path_control_points).columns[col_idx]).x,
-                   (((*bezierPathPointsBufferPtr).bezier_path_control_points).columns[col_idx]).y);
+            printf("\t\t\t%lu\t\t{%.1f, %.1f}\n", col_idx,
+                   (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).x,
+                   (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
         }
         printf("-----------------------------\n");
     }
@@ -163,26 +153,10 @@ const unsigned int bufferSize = arrayLength * sizeof(BezierPathPoints);
 }
 
 
-
-simd_float3x2 bezier_path_position (void) {
-    return (simd_float3x2) {{
-        {0x00,   0x01},
-        { 0x02,   0x04},
-        { 0x06,   0x08}
-    }};
-}
-
-simd_float3x2 bezier_path_control (void) {
-    return (simd_float3x2) {{
-        {0x10,   0x20},
-        {0x40,  0x80},
-        {0x100, 0x200}
-    }};
-}
-
-- (void)updateBezierPathPoints {
-    
-}
-
+static simd_float1 col_idx;
+simd_float3x2 (^bezier_path_points)(simd_float1) = ^ (simd_float1 index) {
+    simd_float2 col = simd_make_float2(col_idx++, index);
+    return (simd_float3x2) {col, col, col};
+};
 
 @end
