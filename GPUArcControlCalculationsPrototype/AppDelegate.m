@@ -1,8 +1,8 @@
 //
 //  AppDelegate.m
-//  MCBiOS2
+//  GPUArcControlCalculationsPrototype
 //
-//  Created by Xcode Developer on 1/9/22.
+//  Created by Xcode Developer on 1/11/22.
 //  Copyright © 2022 Apple. All rights reserved.
 //
 

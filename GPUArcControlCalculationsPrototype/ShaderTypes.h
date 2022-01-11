@@ -8,13 +8,7 @@
 #ifndef ShaderTypes_h
 #define ShaderTypes_h
 
-#ifdef __METAL_VERSION__
-#define NS_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
-#define NSInteger metal::int32_t
-#else
-#import <Foundation/Foundation.h>
-#endif
-
+//#import <Foundation/Foundation.h>
 #include <simd/simd.h>
 
 /*
@@ -29,12 +23,13 @@
  float3x2(float2, float2, float2);
  */
 
-typedef struct __attribute__((objc_boxable)) CaptureDevicePropertyControlLayout {
-    simd_float2 arc_touch_point;
-    simd_float2 button_center_points[5];
-    simd_float2 arc_radius;
-    simd_float2 arc_center;
-    simd_float2 arc_control_points[3];
+typedef struct
+{
+    vector_float2 arc_touch_point;
+    vector_float2 button_center_points[5];
+    vector_float2 arc_radius;
+    vector_float2 arc_center;
+    vector_float2 arc_control_points[3];
 } CaptureDevicePropertyControlLayout;
 
 #endif /* ShaderTypes_h */

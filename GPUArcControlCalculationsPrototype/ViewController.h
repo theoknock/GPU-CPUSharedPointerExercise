@@ -1,5 +1,5 @@
 //
-//  AppDelegate.h
+//  ViewController.h
 //  MCBiOS2
 //
 //  Created by Xcode Developer on 1/9/22.
@@ -8,8 +8,9 @@
 
 #import <UIKit/UIKit.h>
 
-@interface AppDelegate : UIResponder <UIApplicationDelegate>
+@interface ViewController : UIViewController
 
+@property (strong, nonatomic) UIBezierPath * arc;
 
 @end
 

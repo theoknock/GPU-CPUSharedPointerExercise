@@ -6,14 +6,15 @@
  */
 
 #import "MetalAdder.h"
-#import "ShaderTypes.h"
+#include "ShaderTypes.h"
 
 #import <simd/simd.h>
 
 // The number of floats in each array, and the size of the arrays in bytes.
 const unsigned int arrayLength = 0x05;
-const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyControlLayout));
-
+const unsigned int bufferSize = arrayLength * (sizeof(layout));
+static vector_float2 touch_point = {1.0, 0.0};
+static vector_float2 * touch_point_ptr = &touch_point;
 @implementation MetalAdder
 {
     id<MTLDevice> _mDevice;
@@ -38,7 +39,6 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
         NSError* error = nil;
         
         // Load the shader files with a .metal file extension in the project
-        
         id<MTLLibrary> defaultLibrary = [_mDevice newDefaultLibrary];
         if (defaultLibrary == nil)
         {
@@ -70,6 +70,16 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
             NSLog(@"Failed to find the command queue.");
             return nil;
         }
+        
+        captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
+        CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
+        captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout) {
+            .arc_touch_point      =  {1.0, 2.0},
+            .button_center_points = {{40.0, 0.0}, {30.0, 0.0}, {20.0, 0.0}, {10.0, 0.0}, {0.0, 0.0}},
+            .arc_radius           = 0.0,
+            .arc_center           = {0.0, 0.0},
+            .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
+        };;
     }
     
     return self;
@@ -77,18 +87,14 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
 
 - (void) prepareData
 {
-    printf("sizeof(CaptureDevicePropertyControlLayout) == %lu\n", sizeof(struct CaptureDevicePropertyControlLayout));
-    captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:(sizeof(CaptureDevicePropertyControlLayout) * arrayLength) options:MTLResourceStorageModeShared];
-    printf("captureDevicePropertyControlLayoutBuffer == %lu\n", sizeof(captureDevicePropertyControlLayoutBuffer));
-    struct CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
-    captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout){
-        .arc_touch_point      = {0.0, 0.0},
-        .button_center_points = {{4.0, 0.0}, {3.0, 0.0}, {2.0, 0.0}, {1.0, 0.0}, {0.0, 0.0}},
+    CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)captureDevicePropertyControlLayoutBuffer.contents;
+    captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout) {
+        .arc_touch_point      =  (*captureDevicePropertyControlLayoutBufferPtr).arc_touch_point,
+        .button_center_points = {{40.0, 0.0}, {30.0, 0.0}, {20.0, 0.0}, {10.0, 0.0}, {0.0, 0.0}},
         .arc_radius           = 0.0,
         .arc_center           = {0.0, 0.0},
         .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
-    };
-    
+    };;
 }
 
 - (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {
@@ -124,21 +130,22 @@ const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyContr
     // but in this example, the code simply blocks until the calculation is complete.
     [commandBuffer waitUntilCompleted];
     
-    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull commands) {
-        [self verifyResults];
-    }];
-}
-
-- (void) verifyResults
-{
-    CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)captureDevicePropertyControlLayoutBuffer.contents;
-    printf("bezierPathPointsBufferPtr (BezierPathPoints) == %lu\n", sizeof(*captureDevicePropertyControlLayoutBufferPtr));
-    for (unsigned long col_idx = 0; col_idx < 5; col_idx++)
-    {
-        printf("\t\t\t%lu\t\t{%.1f, %.1f}\n", col_idx,
-               (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).x,
-               (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
-    }
+    [commandBuffer addCompletedHandler:^ (id<MTLBuffer> buffer) {
+        return ^ (id<MTLCommandBuffer> _Nonnull commands) {
+            CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)buffer.contents;
+//            printf("bezierPathPointsBufferPtr (BezierPathPoints) == %lu\n", sizeof(*captureDevicePropertyControlLayoutBufferPtr));
+            printf("control_layout_buffer.arc_touch_point == {%.1f, %.1f}\n",
+                   (*captureDevicePropertyControlLayoutBufferPtr).arc_touch_point.x,
+                   (*captureDevicePropertyControlLayoutBufferPtr).arc_touch_point.y);
+           
+            //            for (unsigned long col_idx = 0; col_idx < 5; col_idx++)
+            //            {
+            //                printf("\t\t\t%lu\t\t{%.1f, %.1f}\n", col_idx,
+            //                       (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).x,
+            //                       (((*captureDevicePropertyControlLayoutBufferPtr).button_center_points)[col_idx]).y);
+            //            }
+        };
+    }(captureDevicePropertyControlLayoutBuffer)];
 }
 
 @end
