@@ -6,6 +6,7 @@ A class to manage all of the Metal objects this app creates.
 */
 
 #import <Foundation/Foundation.h>
+//@import CoreGraphics;
 #import <Metal/Metal.h>
 #include "ShaderTypes.h"
 
@@ -16,7 +17,7 @@ static CaptureDevicePropertyControlLayout layout;
 @interface MetalAdder : NSObject
 
 - (instancetype) initWithDevice: (id<MTLDevice>) device;
-- (void) prepareData;
+- (void) prepareData:(vector_float2)touch_point;
 - (void) sendComputeCommand;
 
 @end

@@ -22,15 +22,11 @@
 
 @dynamic view;
 
-//- (void)loadView {
-//    self.view = (ControlView *)[[ControlView alloc] initWithFrame:self.view.frame];
-//}
-static void (^(^(^touch_handler_init)(dispatch_block_t))(UITouch * _Nonnull))(void) = ^ (dispatch_block_t blk) {
+static void (^(^(^touch_handler_init)(void(^)(CGPoint)))(UITouch * _Nonnull))(void) = ^ (void(^process_touch_point)(CGPoint)) {
     return ^ (UITouch * _Nonnull touch) {
         return ^{
             CGPoint touch_point = [touch preciseLocationInView:touch.view];
-//            layout.arc_touch_point = vector2((float)touch_point.x, (float)touch_point.y);
-            blk();
+            process_touch_point(touch_point);
         };
     };
 };
@@ -43,12 +39,14 @@ static void (^handle_touch)(void);
     
     device = MTLCreateSystemDefaultDevice();
     MetalAdder * adder = [[MetalAdder alloc] initWithDevice:device];
-    [adder prepareData];
+    [adder prepareData:vector2((float)CGRectGetMidX(self.view.frame), (float)CGRectGetMidX(self.view.frame))];
     [adder sendComputeCommand];
     touch_handler = touch_handler_init(^ (MetalAdder * metal_adder) {
-        return ^{
-            [metal_adder prepareData];
-            [metal_adder sendComputeCommand];
+        return ^ (CGPoint touch_point) {
+            if (!CGPointEqualToPoint(touch_point, CGPointZero)) { // ERROR: This is a workaround to a bug that sets the touch point to 0, 0 after touchesEnded
+                [metal_adder prepareData:vector2((float)touch_point.x, (float)touch_point.y)];
+                [metal_adder sendComputeCommand];
+            }
         };
     }(adder));
 }

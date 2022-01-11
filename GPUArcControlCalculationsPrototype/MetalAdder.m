@@ -12,9 +12,8 @@
 
 // The number of floats in each array, and the size of the arrays in bytes.
 const unsigned int arrayLength = 0x05;
-const unsigned int bufferSize = arrayLength * (sizeof(layout));
-static vector_float2 touch_point = {1.0, 0.0};
-static vector_float2 * touch_point_ptr = &touch_point;
+const unsigned int bufferSize = arrayLength * (sizeof(CaptureDevicePropertyControlLayout));
+
 @implementation MetalAdder
 {
     id<MTLDevice> _mDevice;
@@ -74,8 +73,8 @@ static vector_float2 * touch_point_ptr = &touch_point;
         captureDevicePropertyControlLayoutBuffer = [_mDevice newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
         CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = captureDevicePropertyControlLayoutBuffer.contents;
         captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout) {
-            .arc_touch_point      =  {1.0, 2.0},
-            .button_center_points = {{40.0, 0.0}, {30.0, 0.0}, {20.0, 0.0}, {10.0, 0.0}, {0.0, 0.0}},
+            .arc_touch_point      =  {0.0, 0.0},
+            .button_center_points = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}},
             .arc_radius           = 0.0,
             .arc_center           = {0.0, 0.0},
             .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
@@ -85,16 +84,16 @@ static vector_float2 * touch_point_ptr = &touch_point;
     return self;
 }
 
-- (void) prepareData
+- (void) prepareData:(vector_float2)touch_point
 {
     CaptureDevicePropertyControlLayout * captureDevicePropertyControlLayoutBufferPtr = (CaptureDevicePropertyControlLayout *)captureDevicePropertyControlLayoutBuffer.contents;
     captureDevicePropertyControlLayoutBufferPtr[0] = (CaptureDevicePropertyControlLayout) {
-        .arc_touch_point      =  (*captureDevicePropertyControlLayoutBufferPtr).arc_touch_point,
-        .button_center_points = {{40.0, 0.0}, {30.0, 0.0}, {20.0, 0.0}, {10.0, 0.0}, {0.0, 0.0}},
+        .arc_touch_point      = touch_point, //(*captureDevicePropertyControlLayoutBufferPtr).arc_touch_point,
+        .button_center_points = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}},
         .arc_radius           = 0.0,
         .arc_center           = {0.0, 0.0},
         .arc_control_points   = {{0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}}
-    };;
+    };
 }
 
 - (void)encodeAddCommand:(id<MTLComputeCommandEncoder>)computeEncoder {

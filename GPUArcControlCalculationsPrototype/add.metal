@@ -27,5 +27,5 @@ typedef struct
 kernel void add_arrays(device CaptureDevicePropertyControlLayout & layout [[ buffer(0) ]],
                                     uint idx [[ thread_position_in_grid ]])
 {
-    layout.arc_touch_point = {(float)layout.arc_touch_point.y, (float)layout.arc_touch_point.x};
+    layout.arc_touch_point = {(float)layout.arc_touch_point.x, (float)layout.arc_touch_point.y};
 }
